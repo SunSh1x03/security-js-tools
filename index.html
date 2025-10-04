@@ -95,15 +95,15 @@
           <div class="row" style="gap:16px">
             <div>
               <label class="muted">VirusTotal API Key</label><br/>
-              <input id="vtKey" placeholder="VT_API_KEY" style="min-width:280px" />
+              <input id="vtKey" type="password" placeholder="VT_API_KEY" style="min-width:280px" autocomplete="off" />
             </div>
             <div>
               <label class="muted">Shodan API Key</label><br/>
-              <input id="shodanKey" placeholder="SHODAN_API_KEY" style="min-width:280px" />
+              <input id="shodanKey" type="password" placeholder="SHODAN_API_KEY" style="min-width:280px" autocomplete="off" />
             </div>
             <div>
               <label class="muted">HIBP API Key</label><br/>
-              <input id="hibpKey" placeholder="HIBP_API_KEY" style="min-width:280px" />
+              <input id="hibpKey" type="password" placeholder="HIBP_API_KEY" style="min-width:280px" autocomplete="off" />
             </div>
           </div>
           <h3>Consulta de URL no VirusTotal</h3>
@@ -112,8 +112,9 @@
             <button id="btnVtCheck">Checar</button>
             <button class="ghost" id="btnVtMock">Mockar resposta</button>
           </div>
+          <div class="hint bad" id="vtWarning">As chamadas reais exigem proxy/backend com autenticação. Sem proxy, utilize apenas o modo mock.</div>
           <div class="divider"></div>
-          <div class="log" id="vtLog">Forneça sua chave para usar a API real ou clique em "Mockar resposta" para visualizar.</div>
+          <div class="log" id="vtLog">Configure um proxy/backend seguro (definindo <span class="mono">VIRUSTOTAL_PROXY_URL</span>) para usar a API real. Caso contrário, utilize "Mockar resposta".</div>
         </div>
       </div>
     </section>
@@ -124,6 +125,7 @@
         <div class="card span-6">
           <h2>🧪 XSS Sandbox (didático)</h2>
           <div class="hint">Demonstra a diferença entre renderização insegura (<span class="mono">innerHTML</span>) e segura (<span class="mono">textContent</span>).</div>
+          <div class="hint bad">⚠️ O modo "Iframe sandbox" executa o payload apenas dentro de um contêiner isolado para fins didáticos. Não publique conteúdo enviado por usuários sem validação/sanitização.</div>
           <div class="row" style="margin:10px 0">
             <input id="xssInput" placeholder="Ex.: <img src=x onerror=alert(1)>" style="flex:1" />
             <select id="xssMode">
@@ -203,6 +205,8 @@
     const $ = sel => document.querySelector(sel);
     const log = (el, msg) => el.textContent = msg;
     const json = obj => JSON.stringify(obj, null, 2);
+    // Configure proxies definindo window.VIRUSTOTAL_PROXY_URL antes deste script
+    const VIRUSTOTAL_PROXY_URL = window.VIRUSTOTAL_PROXY_URL || '';
 
     // ---------- tabs ----------
     document.querySelectorAll('.tab').forEach(btn=>{
@@ -264,28 +268,42 @@
     })
 
     // ---------- VirusTotal (opcional) ----------
+    const vtButton = $('#btnVtCheck');
+    const vtWarning = $('#vtWarning');
+    if(!VIRUSTOTAL_PROXY_URL){
+      vtButton.disabled = true;
+      vtButton.title = 'Configure um proxy/backend seguro antes de habilitar chamadas reais.';
+      if(vtWarning){
+        vtWarning.textContent = 'Proxy não configurado: chamadas reais estão desativadas para evitar exposição de chaves. Ajuste VIRUSTOTAL_PROXY_URL via script ou backend e use o modo mock para demonstração.';
+      }
+    }else if(vtWarning){
+      vtWarning.textContent = `Chamadas reais ativas via proxy seguro (${VIRUSTOTAL_PROXY_URL}). O botão envia somente a URL para o backend.`;
+    }
+
     $('#btnVtMock').addEventListener('click', ()=>{
       const sample = { data: { attributes: { last_analysis_stats: { harmless: 67, malicious: 2, suspicious: 1, undetected: 15 }}}}
       $('#vtLog').textContent = json(sample)
     })
 
     $('#btnVtCheck').addEventListener('click', async ()=>{
-      const key = $('#vtKey').value.trim()
+      if(!VIRUSTOTAL_PROXY_URL){
+        log($('#vtLog'), 'Proxy obrigatório não configurado. Habilite VIRUSTOTAL_PROXY_URL apontando para seu backend seguro.');
+        return;
+      }
       const url = $('#vtUrl').value.trim()
       const out = $('#vtLog')
-      if(!key){ log(out,'Defina sua VT_API_KEY (use um proxy no backend para não expor a chave).'); return }
       if(!url){ log(out,'Informe uma URL para checar.'); return }
-      log(out,'Consultando VirusTotal via CORS (pode falhar em frontend puro)…')
+      const key = $('#vtKey').value.trim()
+      if(key){ log(out,'Remova a chave deste campo. O backend deve possuir o segredo e autenticar a requisição.'); return }
+      log(out,'Enviando URL ao proxy seguro configurado. Nenhuma chave é exposta no frontend.')
       try{
-        const resp = await fetch('https://www.virustotal.com/api/v3/urls',{
-          method:'POST', headers:{ 'x-apikey': key, 'content-type':'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ url })
+        const resp = await fetch(VIRUSTOTAL_PROXY_URL,{
+          method:'POST',
+          headers:{ 'content-type':'application/json' },
+          body: JSON.stringify({ url })
         }).then(r=>r.json())
-        const id = resp.data?.id
-        if(!id) { log(out, json(resp)); return }
-        const rep = await fetch(`https://www.virustotal.com/api/v3/analyses/${id}`,{ headers:{ 'x-apikey': key }}).then(r=>r.json())
-        log(out, json(rep))
-      }catch(e){ log(out,'Falha de CORS. Use proxy serverless (Vercel/Netlify).') }
+        log(out, json(resp))
+      }catch(e){ log(out,'Erro ao chamar proxy. Verifique logs do backend e garanta rate limiting/autenticação.') }
     })
 
     // ---------- XSS ----------
