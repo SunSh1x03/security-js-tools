@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Security Dashboard + Web Attack Simulator</title>
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#121a2f; --muted:#93a4c8; --text:#e7ecf7; --accent:#4cc9f0; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444;
+      --card:#10182b; --border:#1f2a44;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,#0b1020,#0c1226 40%,#0b1020);color:var(--text);font:500 16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial}
+    .container{max-width:1100px;margin:24px auto;padding:0 16px}
+    header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .title{font-size:24px;font-weight:800;letter-spacing:.2px}
+    .subtitle{color:var(--muted);font-size:14px}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 20px}
+    .tab{padding:10px 14px;border:1px solid var(--border);border-radius:10px;background:var(--panel);cursor:pointer}
+    .tab.active{outline:2px solid var(--accent);}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+    .card{grid-column:span 12;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px}
+    @media(min-width:720px){.span-6{grid-column:span 6}.span-4{grid-column:span 4}.span-8{grid-column:span 8}}
+    h2{margin:0 0 8px;font-size:18px}
+    h3{margin:12px 0 6px;font-size:15px;color:var(--muted)}
+    button, input, select, textarea{border-radius:10px;border:1px solid var(--border);background:#0d1528;color:var(--text);padding:10px 12px}
+    button{cursor:pointer}
+    button.primary{background:linear-gradient(180deg,#2152ff,#1a3bd6);border:0}
+    button.ghost{background:transparent}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .kpi{display:flex;flex-direction:column;padding:10px 12px;border:1px dashed var(--border);border-radius:12px;min-width:160px}
+    .muted{color:var(--muted)}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    .log{background:#0a0f1d;border:1px solid var(--border);border-radius:10px;padding:10px;min-height:120px;white-space:pre-wrap}
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;border:1px solid var(--border);background:#0d1528;font-size:12px}
+    .ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+    .divider{height:1px;background:var(--border);margin:10px 0}
+    .code{background:#0a0f1d;border:1px solid var(--border);border-radius:10px;padding:10px;overflow:auto}
+    .hint{font-size:13px;color:var(--muted)}
+    .footer{margin:22px 0 10px;color:var(--muted);font-size:13px}
+    .pill{padding:3px 8px;border-radius:9999px;border:1px solid var(--border);background:#0d1528}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <div class="title">Security Dashboard + Web Attack Simulator</div>
+        <div class="subtitle">Single-file demo em JavaScript puro • pronto para subir no GitHub Pages</div>
+      </div>
+      <div class="row">
+        <a class="badge" href="#" id="exportReadme">📄 Gerar README</a>
+        <span class="pill">v1.0</span>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="dashboard">📊 Painel de Segurança (APIs)</button>
+      <button class="tab" data-tab="simulator">🧪 Mini Simulador de Ataques Web</button>
+      <button class="tab" data-tab="about">ℹ️ Sobre & Como publicar</button>
+    </div>
+
+    <!-- DASHBOARD -->
+    <section id="dashboard" class="tabpanel">
+      <div class="grid">
+        <div class="card span-8">
+          <h2>🔎 IP & Geolocalização (ipify + ipapi)</h2>
+          <div class="row" style="margin:8px 0 12px">
+            <button class="primary" id="btnIpInfo">Descobrir meu IP público</button>
+            <span class="hint">Sem chave. Usa <span class="mono">api.ipify.org</span> e <span class="mono">ipapi.co</span>.</span>
+          </div>
+          <div class="row">
+            <div class="kpi"><span class="muted">IP</span><strong id="ipValue">—</strong></div>
+            <div class="kpi"><span class="muted">País</span><strong id="countryValue">—</strong></div>
+            <div class="kpi"><span class="muted">Cidade</span><strong id="cityValue">—</strong></div>
+            <div class="kpi"><span class="muted">ASN</span><strong id="asnValue">—</strong></div>
+          </div>
+          <div class="divider"></div>
+          <div class="log" id="ipLog"></div>
+        </div>
+
+        <div class="card span-4">
+          <h2>🧰 Checagem de senha vazada (k-anon)</h2>
+          <div class="row">
+            <input id="pwdInput" type="password" placeholder="Digite uma senha de teste" style="flex:1" />
+            <button id="btnPwdCheck">Verificar</button>
+          </div>
+          <div class="hint">Usa <span class="mono">api.pwnedpasswords.com</span> (k-anon) — nada da sua senha é enviada em texto claro.</div>
+          <div class="divider"></div>
+          <div class="log" id="pwdLog">Nenhuma verificação ainda.</div>
+        </div>
+
+        <div class="card span-12">
+          <h2>🧩 Integrações opcionais (VirusTotal, Shodan, HIBP)</h2>
+          <div class="row" style="gap:16px">
+            <div>
+              <label class="muted">VirusTotal API Key</label><br/>
+              <input id="vtKey" placeholder="VT_API_KEY" style="min-width:280px" />
+            </div>
+            <div>
+              <label class="muted">Shodan API Key</label><br/>
+              <input id="shodanKey" placeholder="SHODAN_API_KEY" style="min-width:280px" />
+            </div>
+            <div>
+              <label class="muted">HIBP API Key</label><br/>
+              <input id="hibpKey" placeholder="HIBP_API_KEY" style="min-width:280px" />
+            </div>
+          </div>
+          <h3>Consulta de URL no VirusTotal</h3>
+          <div class="row">
+            <input id="vtUrl" placeholder="https://exemplo.com" style="flex:1" />
+            <button id="btnVtCheck">Checar</button>
+            <button class="ghost" id="btnVtMock">Mockar resposta</button>
+          </div>
+          <div class="divider"></div>
+          <div class="log" id="vtLog">Forneça sua chave para usar a API real ou clique em "Mockar resposta" para visualizar.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SIMULATOR -->
+    <section id="simulator" class="tabpanel" hidden>
+      <div class="grid">
+        <div class="card span-6">
+          <h2>🧪 XSS Sandbox (didático)</h2>
+          <div class="hint">Demonstra a diferença entre renderização insegura (<span class="mono">innerHTML</span>) e segura (<span class="mono">textContent</span>).</div>
+          <div class="row" style="margin:10px 0">
+            <input id="xssInput" placeholder="Ex.: <img src=x onerror=alert(1)>" style="flex:1" />
+            <select id="xssMode">
+              <option value="safe">Seguro (escapar)</option>
+              <option value="unsafe">Inseguro (executa)</option>
+              <option value="sandbox">Iframe sandbox</option>
+            </select>
+            <button id="btnXssRender">Renderizar</button>
+          </div>
+          <div class="row" style="gap:16px">
+            <div class="kpi"><span class="muted">Modo</span><strong id="xssModeLabel">Seguro</strong></div>
+            <div class="kpi"><span class="muted">Execução</span><strong id="xssExec">Bloqueada</strong></div>
+          </div>
+          <div class="divider"></div>
+          <div id="xssOutput" class="code">Saída aparecerá aqui…</div>
+          <iframe id="xssFrame" style="width:100%;height:130px;border:1px solid var(--border);border-radius:10px;margin-top:10px" hidden sandbox></iframe>
+        </div>
+
+        <div class="card span-6">
+          <h2>🗄️ SQL Injection (simulação)</h2>
+          <div class="hint">Banco fictício em memória. Demonstra <em>OR '1'='1'</em> e prevenção por parâmetros.</div>
+          <div class="row" style="margin:10px 0">
+            <input id="sqlUser" placeholder="Usuário"/>
+            <input id="sqlPass" placeholder="Senha"/>
+            <select id="sqlMode">
+              <option value="vulnerable">Vulnerável (string concat)</option>
+              <option value="safe">Seguro (parametrizado)</option>
+            </select>
+            <button id="btnSqlLogin">Login</button>
+          </div>
+          <div class="divider"></div>
+          <div class="log" id="sqlLog">Tente: usuário <span class="mono">admin</span> e senha <span class="mono">' OR '1'='1</span> no modo Vulnerável.</div>
+        </div>
+
+        <div class="card span-12">
+          <h2>📚 Conceitos & Mitigações</h2>
+          <ul>
+            <li><strong>XSS:</strong> Nunca renderize entrada do usuário com <span class="mono">innerHTML</span> sem sanitização. Prefira <span class="mono">textContent</span> ou bibliotecas de sanitização (DOMPurify).</li>
+            <li><strong>SQLi:</strong> Use <em>prepared statements</em>/queries parametrizadas, validação de entrada e <em>least privilege</em> no DB.</li>
+            <li><strong>APIs:</strong> Nunca exponha chaves no frontend. Use <em>proxies</em>/serverless (Netlify/Vercel) para chamadas que exigem segredo.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ABOUT -->
+    <section id="about" class="tabpanel" hidden>
+      <div class="card">
+        <h2>Como usar & publicar</h2>
+        <ol>
+          <li>Crie um repositório no GitHub, por exemplo <span class="mono">security-js-lab</span>.</li>
+          <li>Adicione este arquivo <span class="mono">index.html</span> na raiz.</li>
+          <li>Ative o GitHub Pages: <em>Settings → Pages → Deploy from a branch → main /root</em>.</li>
+          <li>Para usar APIs com chave (VirusTotal/Shodan/HIBP), configure um proxy:
+            <ul>
+              <li><strong>Vercel/Netlify:</strong> crie uma função serverless que lê a chave de variáveis de ambiente e chama a API.</li>
+              <li>Atualize os endpoints neste arquivo para apontar para seu proxy.</li>
+            </ul>
+          </li>
+        </ol>
+        <div class="divider"></div>
+        <h3>Estrutura do projeto sugerida</h3>
+        <pre class="code">security-js-lab/
+├─ index.html  ← (este arquivo único)
+└─ (opcional) functions/   ← proxy serverless para APIs com segredo
+</pre>
+        <div class="divider"></div>
+        <p class="hint">Autor: Filipe Penido • Licença sugerida: MIT (para projetos de portfolio/estudo).</p>
+      </div>
+    </section>
+
+    <div class="footer">Este projeto é didático. Não é um scanner real de rede e não deve ser usado para atividade ofensiva sem autorização.</div>
+  </div>
+
+  <script>
+    // ---------- util ----------
+    const $ = sel => document.querySelector(sel);
+    const log = (el, msg) => el.textContent = msg;
+    const json = obj => JSON.stringify(obj, null, 2);
+
+    // ---------- tabs ----------
+    document.querySelectorAll('.tab').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'))
+        btn.classList.add('active')
+        const target = btn.dataset.tab
+        document.querySelectorAll('.tabpanel').forEach(p=>p.hidden = p.id!==target)
+      })
+    })
+
+    // ---------- IP & GEO ----------
+    $('#btnIpInfo').addEventListener('click', async ()=>{
+      const ipLog = $('#ipLog');
+      log(ipLog, 'Buscando IP público…')
+      try{
+        const ip = await fetch('https://api.ipify.org?format=json').then(r=>r.json())
+        $('#ipValue').textContent = ip.ip
+        log(ipLog, 'Consultando geo…')
+        const geo = await fetch(`https://ipapi.co/${ip.ip}/json/`).then(r=>r.json())
+        $('#countryValue').textContent = geo.country_name || '—'
+        $('#cityValue').textContent = geo.city || '—'
+        $('#asnValue').textContent = geo.asn || geo.org || '—'
+        log(ipLog, json({ip, geo}))
+      }catch(e){
+        log(ipLog, 'Erro ao consultar. Possível bloqueio de CORS. Rode via HTTPS/GitHub Pages.')
+      }
+    })
+
+    // ---------- Pwned Passwords (k-anon) ----------
+    async function sha1(str){
+      const buf = new TextEncoder().encode(str)
+      const hash = await crypto.subtle.digest('SHA-1', buf)
+      return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase()
+    }
+
+    $('#btnPwdCheck').addEventListener('click', async ()=>{
+      const pwd = $('#pwdInput').value
+      const out = $('#pwdLog')
+      if(!pwd){ log(out,'Digite uma senha para verificar.'); return }
+      log(out,'Calculando SHA1 (k-anon)…')
+      try{
+        const h = await sha1(pwd)
+        const prefix = h.slice(0,5)
+        const suffix = h.slice(5)
+        const resp = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`)
+        const text = await resp.text()
+        const lines = text.split('\n')
+        const hit = lines.find(l=>l.startsWith(suffix))
+        if(hit){
+          const count = hit.split(':')[1]?.trim() || '?'
+          out.innerHTML = `⚠️ <strong class="bad">Senha já vazou</strong> (${count} ocorrências). Troque imediatamente.`
+        }else{
+          out.innerHTML = `✅ <strong class="ok">Não encontrada</strong> nesta base. Ainda assim use senhas únicas + 2FA.`
+        }
+      }catch(e){
+        log(out,'Erro na consulta. Possível CORS. Abra via GitHub Pages/HTTPS.')
+      }
+    })
+
+    // ---------- VirusTotal (opcional) ----------
+    $('#btnVtMock').addEventListener('click', ()=>{
+      const sample = { data: { attributes: { last_analysis_stats: { harmless: 67, malicious: 2, suspicious: 1, undetected: 15 }}}}
+      $('#vtLog').textContent = json(sample)
+    })
+
+    $('#btnVtCheck').addEventListener('click', async ()=>{
+      const key = $('#vtKey').value.trim()
+      const url = $('#vtUrl').value.trim()
+      const out = $('#vtLog')
+      if(!key){ log(out,'Defina sua VT_API_KEY (use um proxy no backend para não expor a chave).'); return }
+      if(!url){ log(out,'Informe uma URL para checar.'); return }
+      log(out,'Consultando VirusTotal via CORS (pode falhar em frontend puro)…')
+      try{
+        const resp = await fetch('https://www.virustotal.com/api/v3/urls',{
+          method:'POST', headers:{ 'x-apikey': key, 'content-type':'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ url })
+        }).then(r=>r.json())
+        const id = resp.data?.id
+        if(!id) { log(out, json(resp)); return }
+        const rep = await fetch(`https://www.virustotal.com/api/v3/analyses/${id}`,{ headers:{ 'x-apikey': key }}).then(r=>r.json())
+        log(out, json(rep))
+      }catch(e){ log(out,'Falha de CORS. Use proxy serverless (Vercel/Netlify).') }
+    })
+
+    // ---------- XSS ----------
+    $('#btnXssRender').addEventListener('click', ()=>{
+      const mode = $('#xssMode').value
+      const input = $('#xssInput').value
+      $('#xssModeLabel').textContent = mode === 'safe' ? 'Seguro' : (mode==='sandbox'?'Sandbox':'Inseguro')
+      const exec = $('#xssExec')
+      const out = $('#xssOutput')
+      const frame = $('#xssFrame')
+      out.textContent = ''
+      frame.hidden = true
+      if(mode==='safe'){
+        exec.textContent = 'Bloqueada'
+        out.textContent = input // escape
+      }else if(mode==='unsafe'){
+        exec.textContent = 'Permitida ⚠️'
+        out.innerHTML = input // NÃO FAÇA ISSO EM PRODUÇÃO
+      }else{
+        exec.textContent = 'Isolada (iframe)'
+        frame.hidden = false
+        const doc = frame.contentDocument
+        doc.open();
+        doc.write(`<!doctype html><html><body style="background:#0a0f1d;color:#e7ecf7;font-family:system-ui">
+          <div>Sandbox iframe (scripts só aqui):</div>
+          <div>${input}</div>
+          <footer style="text-align:center;margin:40px 0;color:var(--muted);font-size:14px;">
+    <h3>Autor & Créditos</h3>
+    <p>Projeto idealizado, concebido, customizado e documentado por <strong>Filipe Penido</strong>.<br>
+    Algumas partes do código foram geradas com o auxílio de ferramentas de inteligência artificial para acelerar a implementação e a prototipação; todas as decisões de design, organização do projeto, testes e conteúdo final foram revisados e adaptados por Filipe Penido.<br>
+    Se você utilizar ou referenciar este projeto, por favor mantenha os créditos originais.</p>
+  </footer>
+</body>
+</html>`)
+        doc.close();
+      }
+    })
+
+    // ---------- SQLi ----------
+    const USERS = [
+      {id:1, user:'admin', pass:'secret', role:'admin'},
+      {id:2, user:'maria', pass:'123456', role:'user'},
+      {id:3, user:'joao', pass:'hunter2', role:'user'},
+    ]
+
+    function vulnerableLogin(u, p){
+      // Simula: SELECT * FROM users WHERE user = '${u}' AND pass = '${p}'
+      // Se p contém "' OR '1'='1" retorna todos
+      const query = `SELECT * FROM users WHERE user='${u}' AND pass='${p}'`;
+      let result
+      if(/'\s*OR\s*'1'='1/i.test(p)){
+        result = USERS
+      }else{
+        result = USERS.filter(r=>r.user===u && r.pass===p)
+      }
+      return {query, result}
+    }
+
+    function safeLogin(u, p){
+      // Simula prepared statement: SELECT * FROM users WHERE user=? AND pass=?
+      const query = 'SELECT * FROM users WHERE user = ? AND pass = ?'
+      const params = [u, p]
+      const result = USERS.filter(r=>r.user===u && r.pass===p)
+      return {query, params, result}
+    }
+
+    $('#btnSqlLogin').addEventListener('click', ()=>{
+      const u = $('#sqlUser').value
+      const p = $('#sqlPass').value
+      const mode = $('#sqlMode').value
+      const out = $('#sqlLog')
+      if(mode==='vulnerable'){
+        const {query, result} = vulnerableLogin(u,p)
+        out.textContent = `${query}\n\nResultado: ${json(result)}`
+      }else{
+        const {query, params, result} = safeLogin(u,p)
+        out.textContent = `${query}\nParams: ${json(params)}\n\nResultado: ${json(result)}`
+      }
+    })
+
+    // ---------- README export ----------
+    $('#exportReadme').addEventListener('click', ()=>{
+      const md = `# Security Dashboard + Web Attack Simulator (JS)
+
+Projeto didático em **HTML/CSS/JS puro** (single-file) para portfólio:
+
+- **Painel de Segurança (APIs)**: IP público, geolocalização, checagem de senha vazada (k-anon), integrações opcionais (VirusTotal/Shodan/HIBP) com opção de *mock*.
+- **Mini Simulador de Ataques**: XSS (seguro/inseguro/sandbox) e SQL Injection (vulnerável vs. seguro com parâmetros).
+
+## Como rodar
+1. Faça upload de \`index.html\` no seu repositório (ex.: \`security-js-lab\`).
+2. Ative o **GitHub Pages** em *Settings → Pages*.
+3. Abra a URL do Pages para usar em HTTPS (evita problemas de CORS).
+
+## APIs
+- **IP**: \`https://api.ipify.org?format=json\`
+- **Geo**: \`https://ipapi.co/<IP>/json/\`
+- **Pwned Passwords (k-anon)**: \`https://api.pwnedpasswords.com/range/<prefixoSHA1>\`
+- **VirusTotal (opcional)**: use **proxy serverless** (não exponha a chave no frontend). Exemplos: Netlify/Vercel.
+
+## Segurança
+- Não execute \`innerHTML\` com entrada do usuário.
+- Use *prepared statements* no backend.
+- Nunca exponha chaves de API no frontend; use proxy com variáveis de ambiente.
+
+## Licença
+MIT
+`
+      const blob = new Blob([md], {type:'text/markdown'})
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = 'README.md'; a.click()
+      URL.revokeObjectURL(url)
+    })
+  </script>
+
+  <!-- Tutorial visual: botão flutuante + overlay/tooltip -->
+  <style>
+    .tour-btn{position:fixed;right:18px;bottom:18px;background:linear-gradient(180deg,#22c55e,#16a34a);border:0;color:#06121a;padding:12px 14px;border-radius:999px;box-shadow:0 6px 18px rgba(3,7,18,.6);cursor:pointer;font-weight:700}
+    .tour-overlay{position:fixed;inset:0;background:rgba(2,6,23,0.65);z-index:9998;display:none}
+    .tour-spot{position:absolute;border:2px solid var(--accent);box-shadow:0 8px 30px rgba(0,0,0,.6);border-radius:8px;z-index:9999;pointer-events:none}
+    .tour-tooltip{position:fixed;z-index:10000;max-width:420px;background:linear-gradient(180deg,#0f1724,#071027);border:1px solid var(--border);padding:14px;border-radius:12px;color:var(--text);display:none}
+    .tour-tooltip h4{margin:0 0 6px;font-size:16px}
+    .tour-controls{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+    .tour-controls button{padding:8px 10px;border-radius:8px;border:0;cursor:pointer}
+    .tour-controls .secondary{background:transparent;border:1px solid var(--border);color:var(--muted)}
+    .tour-controls .primary{background:var(--accent);color:#021425}
+  </style>
+
+  <div class="tour-overlay" id="tourOverlay"></div>
+  <div class="tour-spot" id="tourSpot"></div>
+  <div class="tour-tooltip" id="tourTooltip">
+    <h4 id="tourTitle">Título</h4>
+    <div id="tourText">Texto explicativo</div>
+    <div class="tour-controls">
+      <button id="tourPrev" class="secondary">Anterior</button>
+      <button id="tourNext" class="primary">Próximo</button>
+      <button id="tourClose" class="secondary">Fechar</button>
+    </div>
+  </div>
+
+  <button class="tour-btn" id="startTour">🎓 Iniciar Tutorial</button>
+
+  <script>
+    (function(){
+      const steps = [
+        {sel:'#btnIpInfo', title:'Descobrir IP público', text:'Clique aqui para descobrir o seu IP público e ver a geolocalização associada. Útil para entender origem de tráfego.'},
+        {sel:'#pwdInput', title:'Checar senha vazada', text:'Digite uma senha de exemplo e clique em Verificar. O sistema usa k-anon (apenas hash parcial) para preservar sua privacidade.'},
+        {sel:'#vtUrl', title:'Consulta VirusTotal', text:'Cole uma URL e clique em Checar (requer proxy/VT key) ou Mockar resposta para ver um exemplo.'},
+        {sel:'#xssInput', title:'XSS Sandbox', text:'Teste payloads XSS aqui. Mude entre Seguro, Inseguro e Sandbox para ver as diferenças.'},
+        {sel:'#sqlUser', title:'SQLi (Simulação)', text:'Use este formulário para experimentar login vulnerável vs parametrizado e entender injeção SQL.'},
+        {sel:'#exportReadme', title:'Gerar README', text:'Baixe automaticamente um README.md pronto para subir no GitHub com descrição, autor e licença.'}
+      ];
+
+      let idx = 0;
+      const overlay = document.getElementById('tourOverlay');
+      const spot = document.getElementById('tourSpot');
+      const tooltip = document.getElementById('tourTooltip');
+      const titleEl = document.getElementById('tourTitle');
+      const textEl = document.getElementById('tourText');
+      const prevBtn = document.getElementById('tourPrev');
+      const nextBtn = document.getElementById('tourNext');
+      const closeBtn = document.getElementById('tourClose');
+      const startBtn = document.getElementById('startTour');
+
+      function showStep(i){
+        idx = Math.max(0, Math.min(i, steps.length-1));
+        const s = steps[idx];
+        const el = document.querySelector(s.sel);
+        if(!el){ console.warn('Elemento não encontrado:', s.sel); return }
+        const rect = el.getBoundingClientRect();
+        // position spotlight
+        spot.style.display = 'block';
+        spot.style.top = (rect.top - 8) + 'px';
+        spot.style.left = (rect.left - 8) + 'px';
+        spot.style.width = (rect.width + 16) + 'px';
+        spot.style.height = (rect.height + 16) + 'px';
+        // position tooltip: try below, else above
+        const tooltipPadding = 12;
+        const belowTop = rect.bottom + 12;
+        const aboveTop = rect.top - 12 - 120; // estimated height
+        let top = belowTop;
+        if(window.innerHeight - rect.bottom < 160) top = Math.max(8, aboveTop);
+        let left = Math.min(window.innerWidth - 440, rect.left);
+        left = Math.max(8, left);
+        tooltip.style.top = top + 'px';
+        tooltip.style.left = left + 'px';
+        // set text
+        titleEl.textContent = s.title;
+        textEl.textContent = s.text;
+        // show overlay + tooltip
+        overlay.style.display = 'block';
+        tooltip.style.display = 'block';
+        // controls
+        prevBtn.disabled = idx === 0;
+        nextBtn.textContent = idx === steps.length-1 ? 'Finalizar' : 'Próximo';
+      }
+
+      function hideTour(){
+        overlay.style.display = 'none';
+        spot.style.display = 'none';
+        tooltip.style.display = 'none';
+      }
+
+      startBtn.addEventListener('click', ()=>{ showStep(0); window.scrollTo({top:0,behavior:'smooth'}) });
+      prevBtn.addEventListener('click', ()=> showStep(idx-1));
+      nextBtn.addEventListener('click', ()=>{ if(idx===steps.length-1){ hideTour(); } else showStep(idx+1); });
+      closeBtn.addEventListener('click', hideTour);
+      overlay.addEventListener('click', hideTour);
+
+      // keyboard support
+      document.addEventListener('keydown', (e)=>{
+        if(overlay.style.display==='block'){
+          if(e.key==='Escape') hideTour();
+          if(e.key==='ArrowRight') showStep(idx+1);
+          if(e.key==='ArrowLeft') showStep(idx-1);
+        }
+      });
+
+      // responsive: recalc on resize
+      window.addEventListener('resize', ()=>{ if(overlay.style.display==='block') showStep(idx); });
+    })();
+  </script>
+
+</body>
+</html>
