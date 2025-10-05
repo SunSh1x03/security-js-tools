@@ -41,9 +41,6 @@
     .pill{padding:3px 8px;border-radius:9999px;border:1px solid var(--border);background:#0d1528}
     .small{font-size:13px}
     .actions{display:flex;gap:8px;align-items:center}
-    /* Mapa estático */
-    #mapWrap{display:block}
-    #mapImg{width:100%;height:auto;border:1px solid var(--border);border-radius:12px}
   </style>
 </head>
 <body>
@@ -56,7 +53,7 @@
       <div class="row">
         <a class="badge" href="#" id="exportReadme">📄 Gerar README</a>
         <a class="badge" href="attackmap.html" target="_blank" id="openAttackmap">🗺 Abrir Attack Map</a>
-        <span class="pill">v1.2</span>
+        <span class="pill">v1.3</span>
       </div>
     </header>
 
@@ -106,10 +103,6 @@
           </div>
 
           <div class="divider"></div>
-          <div id="mapWrap" hidden>
-            <img id="mapImg" alt="Mapa estático aproximado da localização do IP">
-          </div>
-          <div class="divider"></div>
           <div class="row small">
             <span class="pill">Provedor: <span id="geoProvider">—</span></span>
           </div>
@@ -144,7 +137,7 @@
               <input id="hibpKey" type="password" placeholder="Use proxy seguro" autocomplete="off" style="min-width:280px" />
             </div>
           </div>
-          <div class="hint">As entradas estão desativadas: configure um backend/serverless para armazenar chaves em variáveis de ambiente e expor endpoints públicos.</div>
+          <div class="hint">Você pode digitar aqui, mas **não exponha chaves no frontend**. Use um proxy (serverless/backend) e aponte <span class="mono">window.VIRUSTOTAL_PROXY_URL</span> para ele.</div>
           <h3>Consulta de URL no VirusTotal</h3>
           <div class="row">
             <input id="vtUrl" placeholder="https://exemplo.com" style="flex:1" />
@@ -152,7 +145,7 @@
             <button class="ghost" id="btnVtMock">Mockar resposta</button>
           </div>
           <div class="divider"></div>
-          <div class="log" id="vtLog">Configure <span class="mono">window.VIRUSTOTAL_PROXY_URL</span> apontando para um proxy seguro ou use "Mockar resposta".</div>
+          <div class="log" id="vtLog">Defina <span class="mono">window.VIRUSTOTAL_PROXY_URL</span> para habilitar a consulta real, ou use "Mockar".</div>
         </div>
       </div>
     </section>
@@ -334,22 +327,6 @@
     })
 
     // =======================
-    // Mapa estático (OpenStreetMap Static)
-    // =======================
-    function updateStaticMap(lat, lon, zoom = 10){
-      const wrap = $('#mapWrap')
-      const img = $('#mapImg')
-      if(typeof lat !== 'number' || typeof lon !== 'number'){ wrap.hidden = true; return }
-      // Parâmetros da imagem: tamanho em px (se ajusta via CSS), zoom e marcador
-      const width = 1024; // geramos maior para ficar nítido em telas retina (escala pelo CSS)
-      const height = 340;
-      const marker = `${lat},${lon},red-pushpin`
-      const url = `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lon}&zoom=${zoom}&size=${width}x${height}&maptype=mapnik&markers=${marker}`
-      img.src = url
-      wrap.hidden = false
-    }
-
-    // =======================
     // IP & GEO
     // =======================
     let lastGeoJson = null;
@@ -401,17 +378,11 @@
       $('#currencyValue').textContent = geo.currency || '—'
       $('#callingCodeValue').textContent = geo.calling_code || '—'
       $('#geoProvider').textContent = geo.provider || '—'
-      if(typeof geo.latitude === 'number' && typeof geo.longitude === 'number'){
-        updateStaticMap(geo.latitude, geo.longitude, 10)
-      }else{
-        $('#mapWrap').hidden = true
-      }
     }
 
     $('#btnIpInfo').addEventListener('click', async ()=>{
       const ipLog = $('#ipLog');
       ipLog.textContent = '';
-      $('#mapWrap').hidden = true
       log(ipLog, 'Buscando IP público…')
       try{
         const ipObj = await getPublicIp()
@@ -455,7 +426,7 @@
     })
 
     // =======================
-    // Pwned Passwords (k-anon)
+    // Pwned Passwords (k-anon) – fix de parsing e mensagens
     // =======================
     async function sha1(str){
       const buf = new TextEncoder().encode(str)
@@ -472,14 +443,29 @@
       try{
         const h = await sha1(pwd)
         const prefix = h.slice(0,5)
-        const suffix = h.slice(5)
-        const resp = await fetchWithTimeout(`https://api.pwnedpasswords.com/range/${prefix}`, {}, 9000)
-        if(!resp.ok) throw new Error('api.pwnedpasswords retornou ' + resp.status)
+        const suffix = h.slice(5).toUpperCase()
+
+        const resp = await fetchWithTimeout(`https://api.pwnedpasswords.com/range/${prefix}`, {}, 12000)
+        if(!resp.ok){
+          if(resp.status === 429){
+            log(out, 'A API retornou 429 (rate-limit). Tente novamente em alguns minutos.')
+          }else{
+            log(out, `Erro: api.pwnedpasswords retornou ${resp.status}.`)
+          }
+          return
+        }
         const text = await resp.text()
-        const lines = text.split('\\n')
-        const hit = lines.find(l=>l.toUpperCase().startsWith(suffix.toUpperCase()))
-        if(hit){
-          const count = hit.split(':')[1]?.trim() || '?'
+        // quebra robusta (CRLF/LF) e comparação exata do sufixo
+        const lines = text.split(/\r?\n/).filter(Boolean)
+        let count = null
+        for(const line of lines){
+          const [suf, qty] = line.split(':')
+          if((suf || '').trim().toUpperCase() === suffix){
+            count = (qty || '').trim()
+            break
+          }
+        }
+        if(count){
           out.innerHTML = `⚠️ <strong class="bad">Senha já vazou</strong> (${count} ocorrência(s)). Troque imediatamente.`
         }else{
           out.innerHTML = `✅ <strong class="ok">Não encontrada</strong> nesta base. Ainda assim use senhas únicas + 2FA.`
@@ -490,16 +476,16 @@
     })
 
     // =======================
-    // VirusTotal (via proxy)
+    // VirusTotal / Shodan / HIBP (inputs habilitados)
     // =======================
     const vtKeyInput = $('#vtKey')
     const shodanKeyInput = $('#shodanKey')
     const hibpKeyInput = $('#hibpKey')
     ;[vtKeyInput, shodanKeyInput, hibpKeyInput].forEach(input => {
       if(!input) return
-      input.value = ''
-      input.disabled = true
-      input.title = 'Chaves devem permanecer em um backend ou proxy seguro.'
+      input.disabled = false           // <— agora pode digitar
+      input.autocomplete = 'off'
+      input.title = 'Dica: não exponha chaves no frontend. Use proxy/serverless.'
     })
 
     const vtCheckButton = $('#btnVtCheck')
@@ -507,7 +493,7 @@
     if(!vtProxy){
       vtCheckButton.disabled = true
       vtCheckButton.title = 'Defina window.VIRUSTOTAL_PROXY_URL antes de habilitar esta função.'
-      log(vtLog, 'Defina window.VIRUSTOTAL_PROXY_URL com a URL do seu proxy seguro (serverless/backend) para habilitar a consulta real.')
+      vtLog.textContent = 'Defina window.VIRUSTOTAL_PROXY_URL com a URL do seu proxy seguro (serverless/backend) para habilitar a consulta real.'
     }else{
       vtCheckButton.disabled = false
       vtCheckButton.title = 'Consulta via proxy seguro configurado.'
@@ -521,23 +507,22 @@
     $('#btnVtCheck').addEventListener('click', async ()=>{
       const url = $('#vtUrl').value.trim()
       const out = vtLog
-      if(!vtProxy){ log(out,'Defina window.VIRUSTOTAL_PROXY_URL apontando para um proxy que proteja sua chave antes de usar.'); return }
-      if(!url){ log(out,'Informe uma URL para checar.'); return }
-      log(out,'Consultando VirusTotal via proxy seguro…')
+      if(!vtProxy){ out.textContent = 'Defina window.VIRUSTOTAL_PROXY_URL apontando para um proxy que proteja sua chave antes de usar.'; return }
+      if(!url){ out.textContent = 'Informe uma URL para checar.'; return }
+      out.textContent = 'Consultando VirusTotal via proxy seguro…'
       try{
         const resp = await fetch(vtProxy,{
           method:'POST',
           headers:{ 'content-type':'application/json' },
-          body: JSON.stringify({ url })
+          body: JSON.stringify({ url, vtKey: vtKeyInput?.value || undefined }) // caso seu proxy permita forward da key
         })
         if(!resp.ok){
           const body = await resp.text()
           throw new Error(`Proxy retornou ${resp.status}. ${body || ''}`.trim())
         }
         const data = await resp.json()
-        log(out, 'Resposta do proxy:')
-        log(out, json(data))
-      }catch(e){ log(out, `Falha ao consultar via proxy: ${e?.message || e}`) }
+        out.textContent = 'Resposta do proxy:\n' + json(data)
+      }catch(e){ out.textContent = `Falha ao consultar via proxy: ${e?.message || e}` }
     })
 
     // =======================
@@ -605,10 +590,10 @@
       const out = $('#sqlLog')
       if(mode==='vulnerable'){
         const {query, result} = vulnerableLogin(u,p)
-        out.textContent = `${query}\\n\\nResultado: ${json(result)}`
+        out.textContent = `${query}\n\nResultado: ${json(result)}`
       }else{
         const {query, params, result} = safeLogin(u,p)
-        out.textContent = `${query}\\nParams: ${json(params)}\\n\\nResultado: ${json(result)}`
+        out.textContent = `${query}\nParams: ${json(params)}\n\nResultado: ${json(result)}`
       }
     })
 
@@ -620,7 +605,7 @@
 
 Projeto didático em **HTML/CSS/JS puro** (single-file) para portfólio:
 
-- **Painel de Segurança (APIs)**: IP público, geolocalização (com fallback), **mapa estático** OpenStreetMap (sem dependências externas JS), checagem de senha vazada (k-anon) e integrações opcionais (VirusTotal/Shodan/HIBP) com *mock*.
+- **Painel de Segurança (APIs)**: IP público, geolocalização (com fallback), checagem de senha vazada (k-anon) e integrações opcionais (VirusTotal/Shodan/HIBP) com *mock*.
 - **Mini Simulador de Ataques**: XSS (seguro/inseguro/sandbox) e SQL Injection (vulnerável vs. seguro com parâmetros).
 
 ## Como rodar
@@ -631,7 +616,6 @@ Projeto didático em **HTML/CSS/JS puro** (single-file) para portfólio:
 ## APIs
 - **IP**: \`https://api.ipify.org?format=json\`
 - **Geo** (fallback): \`https://ipapi.co/<IP>/json/\` → \`https://ipinfo.io/<IP>/json\`
-- **Mapa estático**: \`https://staticmap.openstreetmap.de/staticmap.php?center=<lat>,<lon>&zoom=10&size=1024x340&markers=<lat>,<lon>,red-pushpin\`
 - **Pwned Passwords (k-anon)**: \`https://api.pwnedpasswords.com/range/<prefixoSHA1>\`
 
 ## Segurança
