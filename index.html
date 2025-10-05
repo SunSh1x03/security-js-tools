@@ -28,10 +28,10 @@
     button.primary{background:linear-gradient(180deg,#2152ff,#1a3bd6);border:0}
     button.ghost{background:transparent}
     .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .kpi{display:flex;flex-direction:column;padding:10px 12px;border:1px dashed var(--border);border-radius:12px;min-width:160px}
+    .kpi{display:flex;flex-direction:column;padding:10px 12px;border:1px dashed var(--border);border-radius:12px;min-width:120px}
     .muted{color:var(--muted)}
     .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
-    .log{background:#0a0f1d;border:1px solid var(--border);border-radius:10px;padding:10px;min-height:120px;white-space:pre-wrap}
+    .log{background:#0a0f1d;border:1px solid var(--border);border-radius:10px;padding:10px;min-height:120px;white-space:pre-wrap;overflow:auto}
     .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;border:1px solid var(--border);background:#0d1528;font-size:12px}
     .ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
     .divider{height:1px;background:var(--border);margin:10px 0}
@@ -39,6 +39,11 @@
     .hint{font-size:13px;color:var(--muted)}
     .footer{margin:22px 0 10px;color:var(--muted);font-size:13px}
     .pill{padding:3px 8px;border-radius:9999px;border:1px solid var(--border);background:#0d1528}
+    .small{font-size:13px}
+    .actions{display:flex;gap:8px;align-items:center}
+    /* Mapa estático */
+    #mapWrap{display:block}
+    #mapImg{width:100%;height:auto;border:1px solid var(--border);border-radius:12px}
   </style>
 </head>
 <body>
@@ -51,7 +56,7 @@
       <div class="row">
         <a class="badge" href="#" id="exportReadme">📄 Gerar README</a>
         <a class="badge" href="attackmap.html" target="_blank" id="openAttackmap">🗺 Abrir Attack Map</a>
-        <span class="pill">v1.0</span>
+        <span class="pill">v1.2</span>
       </div>
     </header>
 
@@ -65,19 +70,51 @@
     <section id="dashboard" class="tabpanel">
       <div class="grid">
         <div class="card span-8">
-          <h2>🔎 IP & Geolocalização (ipify + ipapi)</h2>
+          <h2>🔎 IP & Geolocalização (ipify + ipapi/ipinfo)</h2>
           <div class="row" style="margin:8px 0 12px">
             <button class="primary" id="btnIpInfo">Descobrir meu IP público</button>
-            <span class="hint">Sem chave. Usa <span class="mono">api.ipify.org</span> e <span class="mono">ipapi.co</span>.</span>
+            <div class="actions">
+              <button id="btnCopyGeo" class="ghost" title="Copiar JSON para clipboard">📋 Copiar JSON</button>
+              <button id="btnDownloadGeo" class="ghost" title="Baixar JSON">⬇️ Baixar JSON</button>
+            </div>
+            <span class="hint">Sem chave. Use em HTTPS/GitHub Pages para evitar CORS. Fallback automático de provedor.</span>
           </div>
+
           <div class="row">
             <div class="kpi"><span class="muted">IP</span><strong id="ipValue">—</strong></div>
             <div class="kpi"><span class="muted">País</span><strong id="countryValue">—</strong></div>
+            <div class="kpi"><span class="muted">Região</span><strong id="regionValue">—</strong></div>
             <div class="kpi"><span class="muted">Cidade</span><strong id="cityValue">—</strong></div>
+          </div>
+
+          <div style="height:8px"></div>
+
+          <div class="row">
             <div class="kpi"><span class="muted">ASN</span><strong id="asnValue">—</strong></div>
+            <div class="kpi"><span class="muted">Org / ISP</span><strong id="orgValue">—</strong></div>
+            <div class="kpi"><span class="muted">CEP</span><strong id="postalValue">—</strong></div>
+            <div class="kpi"><span class="muted">Timezone</span><strong id="timezoneValue">—</strong></div>
+          </div>
+
+          <div style="height:8px"></div>
+
+          <div class="row">
+            <div class="kpi"><span class="muted">Lat</span><strong id="latValue">—</strong></div>
+            <div class="kpi"><span class="muted">Lon</span><strong id="lonValue">—</strong></div>
+            <div class="kpi"><span class="muted">Currency</span><strong id="currencyValue">—</strong></div>
+            <div class="kpi"><span class="muted">Dial Code</span><strong id="callingCodeValue">—</strong></div>
+          </div>
+
+          <div class="divider"></div>
+          <div id="mapWrap" hidden>
+            <img id="mapImg" alt="Mapa estático aproximado da localização do IP">
           </div>
           <div class="divider"></div>
-          <div class="log" id="ipLog"></div>
+          <div class="row small">
+            <span class="pill">Provedor: <span id="geoProvider">—</span></span>
+          </div>
+          <div class="divider"></div>
+          <div class="log" id="ipLog">Nenhuma consulta ainda.</div>
         </div>
 
         <div class="card span-4">
@@ -107,7 +144,7 @@
               <input id="hibpKey" type="password" placeholder="Use proxy seguro" autocomplete="off" style="min-width:280px" />
             </div>
           </div>
-          <div class="hint">As entradas estão desativadas de propósito: configure um backend/serverless que armazene as chaves em variáveis de ambiente e exponha apenas endpoints públicos.</div>
+          <div class="hint">As entradas estão desativadas: configure um backend/serverless para armazenar chaves em variáveis de ambiente e expor endpoints públicos.</div>
           <h3>Consulta de URL no VirusTotal</h3>
           <div class="row">
             <input id="vtUrl" placeholder="https://exemplo.com" style="flex:1" />
@@ -127,7 +164,7 @@
           <h2>🧪 XSS Sandbox (didático)</h2>
           <div class="hint">Demonstra a diferença entre renderização insegura (<span class="mono">innerHTML</span>) e segura (<span class="mono">textContent</span>).</div>
           <div class="row" style="margin:10px 0">
-            <input id="xssInput" placeholder="Ex.: <img src=x onerror=alert(1)>" style="flex:1" />
+            <input id="xssInput" placeholder='Ex.: <img src=x onerror=alert(1)>' style="flex:1" />
             <select id="xssMode">
               <option value="safe">Seguro (escapar)</option>
               <option value="unsafe">Inseguro (executa)</option>
@@ -165,7 +202,7 @@
           <ul>
             <li><strong>XSS:</strong> Nunca renderize entrada do usuário com <span class="mono">innerHTML</span> sem sanitização. Prefira <span class="mono">textContent</span> ou bibliotecas de sanitização (DOMPurify).</li>
             <li><strong>SQLi:</strong> Use <em>prepared statements</em>/queries parametrizadas, validação de entrada e <em>least privilege</em> no DB.</li>
-            <li><strong>APIs:</strong> Nunca exponha chaves no frontend. Use <em>proxies</em>/serverless (Netlify/Vercel) para chamadas que exigem segredo.</li>
+            <li><strong>APIs:</strong> Nunca exponha chaves de API no frontend; use proxies/serverless (Netlify/Vercel) para chamadas que exigem segredo.</li>
           </ul>
         </div>
       </div>
@@ -201,18 +238,82 @@
   </div>
 
   <script>
-    // ---------- util ----------
+    // =======================
+    // Utils
+    // =======================
     const $ = sel => document.querySelector(sel);
-    const log = (el, msg) => el.textContent = msg;
+
+    function log(el, msg){
+      const now = new Date().toLocaleString()
+      const prev = el.textContent || ''
+      el.textContent = prev ? prev + '\\n' + `[${now}] ${msg}` : `[${now}] ${msg}`
+      el.scrollTop = el.scrollHeight
+    }
+
     const json = obj => JSON.stringify(obj, null, 2);
+
+    async function fetchWithTimeout(url, opts = {}, timeout = 8000){
+      const controller = new AbortController()
+      const id = setTimeout(()=>controller.abort(), timeout)
+      try{
+        const resp = await fetch(url, {...opts, signal: controller.signal})
+        clearTimeout(id)
+        return resp
+      }catch(e){
+        clearTimeout(id)
+        throw e
+      }
+    }
+
+    // Normalização para provedores diferentes
+    function normalizeGeo(provider, raw){
+      if(provider === 'ipapi'){
+        return {
+          provider,
+          ip: raw?.ip ?? null,
+          country_name: raw?.country_name ?? null,
+          region: raw?.region ?? raw?.region_code ?? null,
+          city: raw?.city ?? null,
+          postal: raw?.postal ?? raw?.postal_code ?? null,
+          latitude: raw?.latitude ?? raw?.lat ?? null,
+          longitude: raw?.longitude ?? raw?.lon ?? null,
+          timezone: raw?.timezone ?? null,
+          asn: raw?.asn ?? raw?.org ?? null,
+          org: raw?.org ?? raw?.isp ?? raw?.organization ?? null,
+          currency: raw?.currency ?? raw?.currency_code ?? null,
+          calling_code: raw?.country_calling_code ?? raw?.country_phone ?? null,
+          raw
+        }
+      }
+      if(provider === 'ipinfo'){
+        return {
+          provider,
+          ip: raw?.ip ?? null,
+          country_name: raw?.country ?? null, // código do país (ex.: BR)
+          region: raw?.region ?? null,
+          city: raw?.city ?? null,
+          postal: raw?.postal ?? null,
+          latitude: raw?.loc ? Number(raw.loc.split(',')[0]) : null,
+          longitude: raw?.loc ? Number(raw.loc.split(',')[1]) : null,
+          timezone: raw?.timezone ?? null,
+          asn: raw?.org ?? null, // "ASxxxx ISP"
+          org: raw?.hostname || raw?.org || null,
+          currency: null,
+          calling_code: null,
+          raw
+        }
+      }
+      return { provider, raw }
+    }
+
+    // =======================
+    // Backends opcionais (exemplo)
+    // =======================
     const vtProxy = typeof window !== 'undefined' && window.VIRUSTOTAL_PROXY_URL
       ? String(window.VIRUSTOTAL_PROXY_URL).trim()
       : '';
 
-    // ---------- API backend (ajuste para sua URL no Render) ----------
-    // NÃO coloque tokens/keys aqui — apenas a URL da API.
-    // Se o seu backend mudar, atualize esta constante.
-    const API_BASE = "https://php-sectools.onrender.com"; // <-- ajuste para sua URL se necessário
+    const API_BASE = "https://php-sectools.onrender.com"; // opcional
 
     async function loadGraph(id){
       const resp = await fetch(`${API_BASE}/api/graph?id=${encodeURIComponent(id)}`);
@@ -220,7 +321,9 @@
       return resp.json();
     }
 
-    // ---------- tabs ----------
+    // =======================
+    // Tabs
+    // =======================
     document.querySelectorAll('.tab').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'))
@@ -230,25 +333,130 @@
       })
     })
 
-    // ---------- IP & GEO ----------
+    // =======================
+    // Mapa estático (OpenStreetMap Static)
+    // =======================
+    function updateStaticMap(lat, lon, zoom = 10){
+      const wrap = $('#mapWrap')
+      const img = $('#mapImg')
+      if(typeof lat !== 'number' || typeof lon !== 'number'){ wrap.hidden = true; return }
+      // Parâmetros da imagem: tamanho em px (se ajusta via CSS), zoom e marcador
+      const width = 1024; // geramos maior para ficar nítido em telas retina (escala pelo CSS)
+      const height = 340;
+      const marker = `${lat},${lon},red-pushpin`
+      const url = `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lon}&zoom=${zoom}&size=${width}x${height}&maptype=mapnik&markers=${marker}`
+      img.src = url
+      wrap.hidden = false
+    }
+
+    // =======================
+    // IP & GEO
+    // =======================
+    let lastGeoJson = null;
+
+    async function getPublicIp(){
+      const r = await fetchWithTimeout('https://api.ipify.org?format=json', {}, 7000)
+      if(!r.ok) throw new Error('api.ipify.org retornou ' + r.status)
+      return r.json()
+    }
+
+    async function getGeoIpapi(ip){
+      const r = await fetchWithTimeout(`https://ipapi.co/${encodeURIComponent(ip)}/json/`, {}, 9000)
+      if(!r.ok) throw new Error('ipapi.co retornou ' + r.status)
+      const raw = await r.json()
+      return normalizeGeo('ipapi', raw)
+    }
+
+    async function getGeoIpinfo(ip){
+      const r = await fetchWithTimeout(`https://ipinfo.io/${encodeURIComponent(ip)}/json`, {}, 9000)
+      if(!r.ok) throw new Error('ipinfo.io retornou ' + r.status)
+      const raw = await r.json()
+      return normalizeGeo('ipinfo', raw)
+    }
+
+    async function resolveGeo(ipLog){
+      try{
+        log(ipLog, 'Consultando geo (ipapi.co)…')
+        return await getGeoIpapi($('#ipValue').textContent)
+      }catch(e1){
+        log(ipLog, `Falha ipapi: ${(e1?.message||e1)}. Tentando ipinfo.io…`)
+        try{
+          return await getGeoIpinfo($('#ipValue').textContent)
+        }catch(e2){
+          throw new Error(`Falha no fallback ipinfo: ${(e2?.message||e2)}`)
+        }
+      }
+    }
+
+    function renderGeoToUI(geo){
+      $('#countryValue').textContent = geo.country_name || '—'
+      $('#regionValue').textContent = geo.region || '—'
+      $('#cityValue').textContent = geo.city || '—'
+      $('#asnValue').textContent = geo.asn || '—'
+      $('#orgValue').textContent = geo.org || '—'
+      $('#postalValue').textContent = geo.postal || '—'
+      $('#timezoneValue').textContent = geo.timezone || '—'
+      $('#latValue').textContent = (geo.latitude ?? '—')
+      $('#lonValue').textContent = (geo.longitude ?? '—')
+      $('#currencyValue').textContent = geo.currency || '—'
+      $('#callingCodeValue').textContent = geo.calling_code || '—'
+      $('#geoProvider').textContent = geo.provider || '—'
+      if(typeof geo.latitude === 'number' && typeof geo.longitude === 'number'){
+        updateStaticMap(geo.latitude, geo.longitude, 10)
+      }else{
+        $('#mapWrap').hidden = true
+      }
+    }
+
     $('#btnIpInfo').addEventListener('click', async ()=>{
       const ipLog = $('#ipLog');
+      ipLog.textContent = '';
+      $('#mapWrap').hidden = true
       log(ipLog, 'Buscando IP público…')
       try{
-        const ip = await fetch('https://api.ipify.org?format=json').then(r=>r.json())
-        $('#ipValue').textContent = ip.ip
-        log(ipLog, 'Consultando geo…')
-        const geo = await fetch(`https://ipapi.co/${ip.ip}/json/`).then(r=>r.json())
-        $('#countryValue').textContent = geo.country_name || '—'
-        $('#cityValue').textContent = geo.city || '—'
-        $('#asnValue').textContent = geo.asn || geo.org || '—'
-        log(ipLog, json({ip, geo}))
+        const ipObj = await getPublicIp()
+        const ip = ipObj?.ip
+        if(!ip) throw new Error('Resposta de IP vazia.')
+        $('#ipValue').textContent = ip
+        log(ipLog, `IP público: ${ip}`)
+
+        const geo = await resolveGeo(ipLog)
+        lastGeoJson = { ip: ipObj, geo }
+        renderGeoToUI(geo)
+        log(ipLog, 'Geo normalizado:')
+        log(ipLog, json(geo))
       }catch(e){
-        log(ipLog, 'Erro ao consultar. Possível bloqueio de CORS. Rode via HTTPS/GitHub Pages.')
+        const msg = e?.name === 'AbortError' ? 'Tempo esgotado (timeout).' : (e?.message || e)
+        log(ipLog, `Erro ao consultar: ${msg} Possível CORS/rate-limit. Rode via HTTPS/GitHub Pages ou utilize um proxy server-side.`)
       }
     })
 
-    // ---------- Pwned Passwords (k-anon) ----------
+    // Copiar / baixar JSON
+    $('#btnCopyGeo').addEventListener('click', async ()=>{
+      const out = $('#ipLog')
+      if(!lastGeoJson){ log(out, 'Nenhum JSON disponível. Clique em "Descobrir meu IP público" primeiro.'); return }
+      try{
+        await navigator.clipboard.writeText(json(lastGeoJson))
+        log(out, 'JSON copiado para clipboard.')
+      }catch(e){
+        log(out, 'Falha ao copiar para clipboard: ' + (e?.message || e))
+      }
+    })
+
+    $('#btnDownloadGeo').addEventListener('click', ()=>{
+      const out = $('#ipLog')
+      if(!lastGeoJson){ log(out, 'Nenhum JSON disponível. Clique em "Descobrir meu IP público" primeiro.'); return }
+      const blob = new Blob([json(lastGeoJson)], {type:'application/json'})
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `geo-${(new Date()).toISOString().replace(/[:.]/g,'-')}.json`; a.click()
+      URL.revokeObjectURL(url)
+      log(out, 'JSON baixado.')
+    })
+
+    // =======================
+    // Pwned Passwords (k-anon)
+    // =======================
     async function sha1(str){
       const buf = new TextEncoder().encode(str)
       const hash = await crypto.subtle.digest('SHA-1', buf)
@@ -259,27 +467,31 @@
       const pwd = $('#pwdInput').value
       const out = $('#pwdLog')
       if(!pwd){ log(out,'Digite uma senha para verificar.'); return }
+      out.textContent = ''
       log(out,'Calculando SHA1 (k-anon)…')
       try{
         const h = await sha1(pwd)
         const prefix = h.slice(0,5)
         const suffix = h.slice(5)
-        const resp = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`)
+        const resp = await fetchWithTimeout(`https://api.pwnedpasswords.com/range/${prefix}`, {}, 9000)
+        if(!resp.ok) throw new Error('api.pwnedpasswords retornou ' + resp.status)
         const text = await resp.text()
-        const lines = text.split('\n')
-        const hit = lines.find(l=>l.startsWith(suffix))
+        const lines = text.split('\\n')
+        const hit = lines.find(l=>l.toUpperCase().startsWith(suffix.toUpperCase()))
         if(hit){
           const count = hit.split(':')[1]?.trim() || '?'
-          out.innerHTML = `⚠️ <strong class="bad">Senha já vazou</strong> (${count} ocorrências). Troque imediatamente.`
+          out.innerHTML = `⚠️ <strong class="bad">Senha já vazou</strong> (${count} ocorrência(s)). Troque imediatamente.`
         }else{
           out.innerHTML = `✅ <strong class="ok">Não encontrada</strong> nesta base. Ainda assim use senhas únicas + 2FA.`
         }
       }catch(e){
-        log(out,'Erro na consulta. Possível CORS. Abra via GitHub Pages/HTTPS.')
+        log(out,'Erro na consulta. Possível CORS/timeout. Abra via GitHub Pages/HTTPS.')
       }
     })
 
-    // ---------- VirusTotal (opcional) ----------
+    // =======================
+    // VirusTotal (via proxy)
+    // =======================
     const vtKeyInput = $('#vtKey')
     const shodanKeyInput = $('#shodanKey')
     const hibpKeyInput = $('#hibpKey')
@@ -309,10 +521,7 @@
     $('#btnVtCheck').addEventListener('click', async ()=>{
       const url = $('#vtUrl').value.trim()
       const out = vtLog
-      if(!vtProxy){
-        log(out,'Defina window.VIRUSTOTAL_PROXY_URL apontando para um proxy que proteja sua chave antes de usar.')
-        return
-      }
+      if(!vtProxy){ log(out,'Defina window.VIRUSTOTAL_PROXY_URL apontando para um proxy que proteja sua chave antes de usar.'); return }
       if(!url){ log(out,'Informe uma URL para checar.'); return }
       log(out,'Consultando VirusTotal via proxy seguro…')
       try{
@@ -326,11 +535,14 @@
           throw new Error(`Proxy retornou ${resp.status}. ${body || ''}`.trim())
         }
         const data = await resp.json()
+        log(out, 'Resposta do proxy:')
         log(out, json(data))
       }catch(e){ log(out, `Falha ao consultar via proxy: ${e?.message || e}`) }
     })
 
-    // ---------- XSS ----------
+    // =======================
+    // XSS
+    // =======================
     $('#btnXssRender').addEventListener('click', ()=>{
       const mode = $('#xssMode').value
       const input = $('#xssInput').value
@@ -342,7 +554,7 @@
       frame.hidden = true
       if(mode==='safe'){
         exec.textContent = 'Bloqueada'
-        out.textContent = input // escape
+        out.textContent = input
       }else if(mode==='unsafe'){
         exec.textContent = 'Permitida ⚠️'
         out.innerHTML = input // NÃO FAÇA ISSO EM PRODUÇÃO
@@ -359,7 +571,9 @@
       }
     })
 
-    // ---------- SQLi ----------
+    // =======================
+    // SQLi
+    // =======================
     const USERS = [
       {id:1, user:'admin', pass:'secret', role:'admin'},
       {id:2, user:'maria', pass:'123456', role:'user'},
@@ -367,8 +581,6 @@
     ]
 
     function vulnerableLogin(u, p){
-      // Simula: SELECT * FROM users WHERE user = '${u}' AND pass = '${p}'
-      // Se p contém "' OR '1'='1" retorna todos
       const query = `SELECT * FROM users WHERE user='${u}' AND pass='${p}'`;
       let result
       if(/'\s*OR\s*'1'='1/i.test(p)){
@@ -380,7 +592,6 @@
     }
 
     function safeLogin(u, p){
-      // Simula prepared statement: SELECT * FROM users WHERE user=? AND pass=?
       const query = 'SELECT * FROM users WHERE user = ? AND pass = ?'
       const params = [u, p]
       const result = USERS.filter(r=>r.user===u && r.pass===p)
@@ -394,46 +605,45 @@
       const out = $('#sqlLog')
       if(mode==='vulnerable'){
         const {query, result} = vulnerableLogin(u,p)
-        out.textContent = `${query}\n\nResultado: ${json(result)}`
+        out.textContent = `${query}\\n\\nResultado: ${json(result)}`
       }else{
         const {query, params, result} = safeLogin(u,p)
-        out.textContent = `${query}\nParams: ${json(params)}\n\nResultado: ${json(result)}`
+        out.textContent = `${query}\\nParams: ${json(params)}\\n\\nResultado: ${json(result)}`
       }
     })
 
-    // ---------- README export ----------
+    // =======================
+    // README export
+    // =======================
     $('#exportReadme').addEventListener('click', ()=>{
       const md = `# Security Dashboard + Web Attack Simulator (JS)
 
 Projeto didático em **HTML/CSS/JS puro** (single-file) para portfólio:
 
-- **Painel de Segurança (APIs)**: IP público, geolocalização, checagem de senha vazada (k-anon), integrações opcionais (VirusTotal/Shodan/HIBP) com opção de *mock*.
+- **Painel de Segurança (APIs)**: IP público, geolocalização (com fallback), **mapa estático** OpenStreetMap (sem dependências externas JS), checagem de senha vazada (k-anon) e integrações opcionais (VirusTotal/Shodan/HIBP) com *mock*.
 - **Mini Simulador de Ataques**: XSS (seguro/inseguro/sandbox) e SQL Injection (vulnerável vs. seguro com parâmetros).
 
 ## Como rodar
 1. Faça upload de \`index.html\` no seu repositório (ex.: \`security-js-lab\`).
 2. Ative o **GitHub Pages** em *Settings → Pages*.
-3. Abra a URL do Pages para usar em HTTPS (evita problemas de CORS).
+3. Abra a URL do Pages em **HTTPS** (evita CORS). Se der *rate-limit*, tente novamente após alguns minutos.
 
 ## APIs
 - **IP**: \`https://api.ipify.org?format=json\`
-- **Geo**: \`https://ipapi.co/<IP>/json/\`
+- **Geo** (fallback): \`https://ipapi.co/<IP>/json/\` → \`https://ipinfo.io/<IP>/json\`
+- **Mapa estático**: \`https://staticmap.openstreetmap.de/staticmap.php?center=<lat>,<lon>&zoom=10&size=1024x340&markers=<lat>,<lon>,red-pushpin\`
 - **Pwned Passwords (k-anon)**: \`https://api.pwnedpasswords.com/range/<prefixoSHA1>\`
-- **VirusTotal (opcional)**: use **proxy serverless** (não exponha a chave no frontend). Exemplos: Netlify/Vercel.
 
 ## Segurança
-- Não execute \`innerHTML\` com entrada do usuário.
+- Evite \`innerHTML\` para entrada do usuário.
 - Use *prepared statements* no backend.
-- Nunca exponha chaves de API no frontend; use proxy com variáveis de ambiente.
+- Não exponha chaves de API no frontend; use proxy com variáveis de ambiente.
 
 ## Licença
 MIT
 
 ## 👤 Autor & Créditos
-
-Projeto idealizado, arquitetado e desenvolvido por **Filipe Penido**.  
-Partes do código foram geradas com o apoio de ferramentas de IA para prototipação; todas as decisões de arquitetura, design e conteúdo final foram revisadas e validadas pelo autor.
-
+Projeto por **Filipe Penido**. Partes do código foram prototipadas com IA; todo o conteúdo final foi revisado pelo autor.
 `
       const blob = new Blob([md], {type:'text/markdown'})
       const url = URL.createObjectURL(blob)
